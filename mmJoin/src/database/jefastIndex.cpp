@@ -52,14 +52,14 @@ void jefastIndexLinear::GetJoinNumber(weight_t joinNumber, std::vector<int64_t> 
     }
 }
 
-void jefastIndexLinear::GetJoinNumberWithWeights(weight_t joinNumber, std::vector<int64_t> &out, std::vector<weight_t> &join_weights) {
+std::vector<weight_t> jefastIndexLinear::GetJoinNumberWithWeights(weight_t joinNumber, std::vector<int64_t> &out) {
     // check if it is out of bounds?
     //if (joinNumber < start_weight)
     //    throw "Out of bounds";
     assert(joinNumber < start_weight);
 
     out.resize(this->GetNumberOfLevels());
-    join_weights.resize(this->GetNumberOfLevels());
+    std::vector<weight_t> join_weights(this->GetNumberOfLevels());
 
     // find the first level item
     weight_t current_weight = joinNumber;
@@ -70,15 +70,14 @@ void jefastIndexLinear::GetJoinNumberWithWeights(weight_t joinNumber, std::vecto
     //    first_phase->Step();
     //}
 
-    this->m_levels.at(0)->GetStartPairStep(current_weight, out[0], out[1]);
-    join_weights[0] = current_weight;
+    this->m_levels.at(0)->GetStartPairStep(current_weight, out[0], out[1], &join_weights[0]);
 
     //out.at(0) = first_phase->getRecordId();
     //auto value = first_phase->getVertexValue();
 
     // in this case, we already have selected the items needed.
     if (this->m_levels.size() == 1)
-        return;
+        return join_weights;
 
 
     auto value = this->m_levels.at(0)->get_RHS_Table()->get_int64(out[1], this->m_levels.at(1)->get_LHS_table_index());
@@ -86,11 +85,11 @@ void jefastIndexLinear::GetJoinNumberWithWeights(weight_t joinNumber, std::vecto
     // step though each other point.
     for (int i = 1; i < this->m_levels.size(); ++i) {
         //this->m_levels.at(i)->GetNextStep(value, current_weight, out[i + 1], value);
-        this->m_levels.at(i)->GetNextStep(value, current_weight, out[i + 1]);
-        join_weights[i] = current_weight;
+        this->m_levels.at(i)->GetNextStep(value, current_weight, out[i + 1], &join_weights[i]);
         if(i+1 < this->m_levels.size())
             value = this->m_levels.at(i)->get_RHS_Table()->get_int64(out[i + 1], this->m_levels.at(i + 1)->get_LHS_table_index());
     }
+    return std::move(join_weights);
 }
 
 void jefastIndexLinear::GetRandomJoin(std::vector<int64_t> &out) {
@@ -99,10 +98,11 @@ void jefastIndexLinear::GetRandomJoin(std::vector<int64_t> &out) {
     return this->GetJoinNumber(random_join_number, out);
 }
 
-void jefastIndexLinear::GetRandomJoinWithWeights(std::vector<int64_t> &out, std::vector<weight_t> &join_weights) {
+std::vector<weight_t> jefastIndexLinear::GetRandomJoinWithWeights(std::vector<int64_t> &out) {
     weight_t random_join_number = m_distribution(m_generator);
     std::cerr << "inside linear!!!!" << std::endl;
-    return this->GetJoinNumberWithWeights(random_join_number, out, join_weights);
+    return std::move(this->GetJoinNumberWithWeights(random_join_number, out));
+    // return join_weights;
 }
 
 int jefastIndexLinear::GetNumberOfLevels()
@@ -347,16 +347,15 @@ void jefastIndexFork::GetJoinNumber(
     }
 }
 
-void jefastIndexFork::GetJoinNumberWithWeights(
+std::vector<weight_t> jefastIndexFork::GetJoinNumberWithWeights(
     weight_t joinNumber,
-    std::vector<int64_t> &out,
-    std::vector<weight_t> &join_weights) {
+    std::vector<int64_t> &out) {
     
     std::cerr << "#levels=" << GetNumberOfLevels() << std::endl;
 
     assert(joinNumber < m_start_weight);
     out.resize(GetNumberOfLevels());
-    join_weights.resize(GetNumberOfLevels());
+    std::vector<weight_t> join_weights(GetNumberOfLevels());
     std::cerr << "[GetJoinNumberWithWeights] join_weights.size()=" << join_weights.size() << std::endl;
 
     // Stores the remaining weights to be used in the subsequent levels
@@ -376,9 +375,10 @@ void jefastIndexFork::GetJoinNumberWithWeights(
         m_levels[0]->GetNextStep(
             virtual_key,
             rem_weights[0],
-            out[0]);
-        std::cerr << "index=" << 1 << " w=" << rem_weights[1] << std::endl;
-        join_weights[1] = rem_weights[1];
+            out[0],
+            &join_weights[1]);
+        std::cerr << "index=" << 1 << " w=" << join_weights[1] << std::endl;
+        //join_weights[1] = rem_weights[1];
         i = 1;
     } else {
         std::cerr << "second case" << std::endl;
@@ -389,12 +389,13 @@ void jefastIndexFork::GetJoinNumberWithWeights(
         m_levels[1]->GetStartPairStep(
             rem_weights[1],
             out[0],
-            out[1]);
-        std::cerr << "index=" << 1 << " w=" << rem_weights[1] << std::endl;
-        join_weights[1] = rem_weights[1];
+            out[1],
+            &join_weights[1]);
+        std::cerr << "extracted: " << out[0] << ", " << out[1] << std::endl;
+        std::cerr << "index=" << 1 << " w=" << join_weights[1] << std::endl;
         i = 2;
     }
-#if 0
+#if 1
     // continue through all the remaining tables
     for (; i < m_levels.size(); ++i) {
         std::cerr << "!!!!!!!!!!!!!!!!! insideeeee" << std::endl;
@@ -407,12 +408,12 @@ void jefastIndexFork::GetJoinNumberWithWeights(
             // child in a fork. Use GetNextStep() as usual,
             // which saves a modulo op.
             rem_weights[i] = rem_weights[lhs_table_number];
-            m_levels[i]->GetNextStep(value, rem_weights[i], out[i]);
+            m_levels[i]->GetNextStep(value, rem_weights[i], out[i], &join_weights[i]);
             std::cerr << "i=" << i << " w=" << rem_weights[i] << std::endl;
         
             // TODO: is this the correct weight?
             // TODO: is it before `GetNextStep`?
-            join_weights[i] = rem_weights[i];
+            //join_weights[i] = rem_weights[i];
         } else {
             // This is some child other than the last in a fork.
             // Use GetNextStepThroughFork() to correctly set
@@ -421,14 +422,16 @@ void jefastIndexFork::GetJoinNumberWithWeights(
                 value,
                 rem_weights[lhs_table_number], /* parent_weight */
                 rem_weights[i], /* my_weight */
-                out[i]);
+                out[i],
+                &join_weights[i]);
             std::cerr << "i=" << i << " w=" << rem_weights[i] << std::endl;
             // TODO: is this the correct weight?
-            join_weights[i] = rem_weights[i];
+            //join_weights[i] = rem_weights[i];
         }
     }
 #endif
     std::cerr << "[final] size=" << join_weights.size() << std::endl;
+    return std::move(join_weights);
 }
 
 void jefastIndexFork::GetRandomJoin(std::vector<int64_t> &out) {
@@ -436,12 +439,13 @@ void jefastIndexFork::GetRandomJoin(std::vector<int64_t> &out) {
     return this->GetJoinNumber(random_join_number, out);
 }
 
-void jefastIndexFork::GetRandomJoinWithWeights(std::vector<int64_t> &out, std::vector<weight_t> &join_weights) {
+std::vector<weight_t> jefastIndexFork::GetRandomJoinWithWeights(std::vector<int64_t> &out) {
     weight_t random_join_number = m_distribution(m_generator);
-    this->GetJoinNumberWithWeights(random_join_number, out, join_weights);
-    std::cerr << "aftewards=" << join_weights.size() << std::endl;
-    for (const auto& elem: join_weights) {
-        std::cerr << elem << ",";
-    }
-    std::cerr << std::endl;
+    return std::move(this->GetJoinNumberWithWeights(random_join_number, out));
+    // std::cerr << "aftewards=" << join_weights.size() << std::endl;
+    // for (const auto& elem: join_weights) {
+    //     std::cerr << elem << ",";
+    // }
+    // std::cerr << std::endl;
+    // return join_weights;
 }
