@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <tuple>
+#include <sstream>
 #include <random>
 
 #include "Table.h"
@@ -23,6 +24,7 @@ public:
 
     // get the total number of join possibilities.
     virtual weight_t GetTotal() = 0;
+    virtual uint64_t GetTransformedTotal() = 0;
 
     virtual void GetJoinNumber(weight_t joinNumber, std::vector<int64_t> &out)= 0;
     virtual std::vector<weight_t> GetJoinNumberWithWeights(weight_t joinNumber, std::vector<int64_t> &out)= 0;
@@ -32,7 +34,7 @@ public:
 
     virtual std::pair<std::vector<std::vector<int64_t>>, std::vector<std::vector<uint64_t>>> GenerateData(size_t count) = 0;
     virtual std::pair<std::vector<int64_t>, std::vector<uint64_t>> GenerateSampleData() = 0;
-
+    virtual std::pair<int64_t, uint64_t> GenerateFirstEntry(uint64_t tupleIndex) = 0;
 
     // return the number of levels in this jefastIndex
     // (how large a vector will be if a join value is reported)
@@ -46,6 +48,10 @@ public:
 
     // get the total number of join possibilities.
     weight_t GetTotal();
+    uint64_t GetTransformedTotal() {
+        // TODO
+        return 0;
+    }
 
     void GetJoinNumber(weight_t joinNumber, std::vector<int64_t> &out);
     std::vector<weight_t> GetJoinNumberWithWeights(weight_t joinNumber, std::vector<int64_t> &out);
@@ -55,6 +61,7 @@ public:
 
     std::pair<std::vector<std::vector<int64_t>>, std::vector<std::vector<uint64_t>>> GenerateData(size_t count);
     std::pair<std::vector<int64_t>, std::vector<uint64_t>> GenerateSampleData();
+    std::pair<int64_t, uint64_t> GenerateFirstEntry(uint64_t tupleIndex);
 
     // return the number of levels in this jefastIndex
     // (how large a vector will be if a join value is reported)
@@ -106,6 +113,11 @@ public:
         return m_start_weight;
     }
 
+    uint64_t GetTransformedTotal() {
+        std::ostringstream stream; stream << m_start_weight;
+        return static_cast<uint64_t>(std::stoull(stream.str()));
+    }
+
     void GetJoinNumber(weight_t joinNumber, std::vector<int64_t> &out);
     std::vector<weight_t> GetJoinNumberWithWeights(weight_t joinNumber, std::vector<int64_t> &out);
 
@@ -114,6 +126,7 @@ public:
 
     std::pair<std::vector<std::vector<int64_t>>, std::vector<std::vector<uint64_t>>> GenerateData(size_t count);
     std::pair<std::vector<int64_t>, std::vector<uint64_t>> GenerateSampleData();
+    std::pair<int64_t, uint64_t> GenerateFirstEntry(uint64_t tupleIndex);
 
     int GetNumberOfLevels() {
         return (int) m_levels.size() + 1;

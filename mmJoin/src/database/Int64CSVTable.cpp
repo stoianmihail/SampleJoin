@@ -18,12 +18,9 @@ bool Int64CSVTable::load(std::vector<std::vector<double>>& table, unsigned num_a
     
     assert(num_attributes == table.front().size());
     for (const auto& entry: table) {
-        std::cerr << "tuple:";
         for (unsigned index = 0, limit = num_attributes; index != limit; ++index) {
-            std::cerr << entry[index] << ",";
             m_data[index].push_back(static_cast<int64_t>(entry[index]));
         }
-        std::cerr << std::endl;
     }
     std::cerr << "[Int64CSVTable::load] stop" << std::endl;
     return true;

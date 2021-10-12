@@ -6,7 +6,6 @@
 #include "jefastLevel.h"
 
 #include <iostream>
-#include <sstream>
 #include <fstream>
 #include <algorithm>
 #include <random>
@@ -107,6 +106,12 @@ std::vector<weight_t> jefastIndexLinear::GetRandomJoinWithWeights(std::vector<in
     weight_t random_join_number = m_distribution(m_generator);
     //std::cerr << "inside linear!!!!" << std::endl;
     return this->GetJoinNumberWithWeights(random_join_number, out);
+}
+
+std::pair<int64_t, uint64_t> jefastIndexLinear::GenerateFirstEntry(uint64_t tupleIndex)
+{
+    // TODO
+    return {0, 0};
 }
 
 std::pair<std::vector<int64_t>, std::vector<uint64_t>> jefastIndexLinear::GenerateSampleData()
@@ -483,6 +488,50 @@ void jefastIndexFork::GetRandomJoin(std::vector<int64_t> &out) {
 std::vector<weight_t> jefastIndexFork::GetRandomJoinWithWeights(std::vector<int64_t> &out) {
     weight_t random_join_number = m_distribution(m_generator);
     return this->GetJoinNumberWithWeights(random_join_number, out);
+}
+
+static uint64_t weight_to_uint64_t(weight_t w) {
+    std::ostringstream stream; stream << w;
+    return static_cast<uint64_t>(std::stoull(stream.str()));
+}
+
+static std::string debugWeight(weight_t w) {
+    std::ostringstream stream; stream << w;
+    return std::to_string(std::stoull(stream.str()));
+}
+
+std::pair<int64_t, uint64_t> jefastIndexFork::GenerateFirstEntry(uint64_t tupleIndex)
+// Generate only the first entry of the tuple, which corresponds to the tuple of the root table.
+{
+    weight_t joinNumber = static_cast<weight_t>(tupleIndex);
+    assert(joinNumber < m_start_weight);
+    
+    int64_t out0, out1;
+    weight_t w0, w1, rem;
+    if (m_levels[0].get()) {
+        // We have a virtual level where there is just one
+        // (virtual) key in it and the vertex contains all records
+        // in table[0].
+        rem = joinNumber;
+        m_levels[0]->GetNextStep(
+            virtual_key,
+            rem,
+            out0,
+            &w0);
+    } else {
+        // We don't have a virtual level. Just use
+        // GetStartPairStep() to set up the first two
+        // rows simultaneously.
+        rem = joinNumber;
+        m_levels[1]->GetStartPairStep(
+            rem,
+            out0,
+            out1,
+            {&w0, &w1});
+    }
+
+    std::ostringstream stream; stream << w0;
+    return {out0, static_cast<uint64_t>(std::stoull(stream.str()))};
 }
 
 std::pair<std::vector<int64_t>, std::vector<uint64_t>> jefastIndexFork::GenerateSampleData()
