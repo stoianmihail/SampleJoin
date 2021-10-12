@@ -26,8 +26,6 @@ int JefastBuilder::AppendTable(std::shared_ptr<Table> table, int RHSIndex, int L
     m_RHSJoinIndex.push_back(RHSIndex);
     m_filters.push_back(std::vector<std::shared_ptr<jefastFilter> >());
 
-    std::cerr << "[AppendTable] joinedTables.size()=" << m_joinedTables.size() << std::endl;
-
     return int(m_joinedTables.size()) - 1;
 }
 
@@ -36,8 +34,6 @@ int JefastBuilder::AddTableToFork(
     int thisTableJoinColIndex,
     int prevTableJoinColIndex,
     int prevTableNumber) {
-
-    std::cerr << "[AddTableToFork] joinedTables.size()=" << m_joinedTables.size() << std::endl;
 
     if (!m_has_fork) {
         if (m_joinedTables.size() > 0) {
