@@ -6,6 +6,8 @@
 #include "jefastLevel.h"
 
 #include <iostream>
+#include <sstream>
+#include <fstream>
 #include <algorithm>
 #include <random>
 #include <queue>
@@ -58,6 +60,8 @@ std::vector<weight_t> jefastIndexLinear::GetJoinNumberWithWeights(weight_t joinN
     //    throw "Out of bounds";
     assert(joinNumber < start_weight);
 
+    //std::cerr << "[jefastIndexLinear] #levels=" << this->GetNumberOfLevels() << std::endl;
+
     out.resize(this->GetNumberOfLevels());
     std::vector<weight_t> join_weights(this->GetNumberOfLevels());
 
@@ -70,7 +74,7 @@ std::vector<weight_t> jefastIndexLinear::GetJoinNumberWithWeights(weight_t joinN
     //    first_phase->Step();
     //}
 
-    this->m_levels.at(0)->GetStartPairStep(current_weight, out[0], out[1], &join_weights[0]);
+    this->m_levels.at(0)->GetStartPairStep(current_weight, out[0], out[1], {&join_weights[0], &join_weights[1]});
 
     //out.at(0) = first_phase->getRecordId();
     //auto value = first_phase->getVertexValue();
@@ -85,11 +89,12 @@ std::vector<weight_t> jefastIndexLinear::GetJoinNumberWithWeights(weight_t joinN
     // step though each other point.
     for (int i = 1; i < this->m_levels.size(); ++i) {
         //this->m_levels.at(i)->GetNextStep(value, current_weight, out[i + 1], value);
-        this->m_levels.at(i)->GetNextStep(value, current_weight, out[i + 1], &join_weights[i]);
+        // TODO: test whether `join_weights[i + 1]` makes sense!
+        this->m_levels.at(i)->GetNextStep(value, current_weight, out[i + 1], &join_weights[i + 1]);
         if(i+1 < this->m_levels.size())
             value = this->m_levels.at(i)->get_RHS_Table()->get_int64(out[i + 1], this->m_levels.at(i + 1)->get_LHS_table_index());
     }
-    return std::move(join_weights);
+    return join_weights;
 }
 
 void jefastIndexLinear::GetRandomJoin(std::vector<int64_t> &out) {
@@ -100,9 +105,40 @@ void jefastIndexLinear::GetRandomJoin(std::vector<int64_t> &out) {
 
 std::vector<weight_t> jefastIndexLinear::GetRandomJoinWithWeights(std::vector<int64_t> &out) {
     weight_t random_join_number = m_distribution(m_generator);
-    std::cerr << "inside linear!!!!" << std::endl;
-    return std::move(this->GetJoinNumberWithWeights(random_join_number, out));
-    // return join_weights;
+    //std::cerr << "inside linear!!!!" << std::endl;
+    return this->GetJoinNumberWithWeights(random_join_number, out);
+}
+
+std::pair<std::vector<int64_t>, std::vector<uint64_t>> jefastIndexLinear::GenerateSampleData()
+// Generate a sample.
+{
+    // Convert `weight_t` to `uint64_t`.
+    auto convert = [&](std::vector<weight_t>& ws) {
+        std::vector<uint64_t> transformed;
+        std::transform(ws.begin(), ws.end(), std::back_inserter(transformed), [](auto w) {
+            std::ostringstream stream; stream << w;
+            return static_cast<uint64_t>(std::stoull(stream.str())); 
+        });
+        return std::move(transformed);
+    };
+
+    std::vector<int64_t> out;
+    auto ws = GetRandomJoinWithWeights(out);
+    return {std::move(out), convert(ws)};
+}
+
+std::pair<std::vector<std::vector<int64_t>>, std::vector<std::vector<uint64_t>>> jefastIndexLinear::GenerateData(size_t count)
+// Generate `count` samples, along with the weights of the tuples.
+{
+    // And sample.
+    std::vector<std::vector<int64_t>> sampled(count);
+    std::vector<std::vector<uint64_t>> weights(count);
+    for (size_t index = 0; index != count; ++index) {
+        auto [ss, ws] = GenerateSampleData();
+        sampled[index] = std::move(ss);
+        weights[index] = std::move(ws);
+    }
+    return {sampled, weights};
 }
 
 int jefastIndexLinear::GetNumberOfLevels()
@@ -351,12 +387,12 @@ std::vector<weight_t> jefastIndexFork::GetJoinNumberWithWeights(
     weight_t joinNumber,
     std::vector<int64_t> &out) {
     
-    std::cerr << "#levels=" << GetNumberOfLevels() << std::endl;
+    //std::cerr << "#levels=" << GetNumberOfLevels() << std::endl;
 
     assert(joinNumber < m_start_weight);
     out.resize(GetNumberOfLevels());
     std::vector<weight_t> join_weights(GetNumberOfLevels());
-    std::cerr << "[GetJoinNumberWithWeights] join_weights.size()=" << join_weights.size() << std::endl;
+    //std::cerr << "[GetJoinNumberWithWeights] join_weights.size()=" << join_weights.size() << std::endl;
 
     // Stores the remaining weights to be used in the subsequent levels
     // after we traverse through a fork.
@@ -367,7 +403,7 @@ std::vector<weight_t> jefastIndexFork::GetJoinNumberWithWeights(
     size_t i;
     // TODO: what to do with weight(0)? Or is the entire vector shifted by one?
     if (m_levels[0].get()) {
-        std::cerr << "first case" << std::endl;
+        //std::cerr << "first case" << std::endl;
         // We have a virtual level where there is just one
         // (virtual) key in it and the vertex contains all records
         // in table[0].
@@ -376,12 +412,10 @@ std::vector<weight_t> jefastIndexFork::GetJoinNumberWithWeights(
             virtual_key,
             rem_weights[0],
             out[0],
-            &join_weights[1]);
-        std::cerr << "index=" << 1 << " w=" << join_weights[1] << std::endl;
-        //join_weights[1] = rem_weights[1];
+            &join_weights[0]);
         i = 1;
     } else {
-        std::cerr << "second case" << std::endl;
+        //std::cerr << "second case" << std::endl;
         // We don't have a virtual level. Just use
         // GetStartPairStep() to set up the first two
         // rows simultaneously.
@@ -390,31 +424,35 @@ std::vector<weight_t> jefastIndexFork::GetJoinNumberWithWeights(
             rem_weights[1],
             out[0],
             out[1],
-            &join_weights[1]);
-        std::cerr << "extracted: " << out[0] << ", " << out[1] << std::endl;
-        std::cerr << "index=" << 1 << " w=" << join_weights[1] << std::endl;
+            {&join_weights[0], &join_weights[1]});
         i = 2;
     }
+    //std::cerr << "i=" << i << " size=" << m_levels.size() << std::endl;
 #if 1
     // continue through all the remaining tables
     for (; i < m_levels.size(); ++i) {
-        std::cerr << "!!!!!!!!!!!!!!!!! insideeeee" << std::endl;
+        //std::cerr << "[GetJoinNumberWithWeights] main loop i=" << i << std::endl;
+        //std::cerr << "!!!!!!!!!!!!!!!!! insideeeee" << std::endl;
         int lhs_table_number = m_parent_tables[i];
         int lhs_column = m_levels[i]->get_LHS_table_index();
         jfkey_t value = m_levels[lhs_table_number]->get_RHS_Table()
             ->get_int64(out[lhs_table_number], lhs_column);
         if (m_is_last_child[i]) {
+            //std::cerr << "\t [Main Loop] first branch!" << std::endl;
             // This is either a linear child or the last
             // child in a fork. Use GetNextStep() as usual,
             // which saves a modulo op.
             rem_weights[i] = rem_weights[lhs_table_number];
+            // std::cerr << "\t[before GetNextStep]" << std::endl;
             m_levels[i]->GetNextStep(value, rem_weights[i], out[i], &join_weights[i]);
-            std::cerr << "i=" << i << " w=" << rem_weights[i] << std::endl;
+            // std::cerr << "\t[after GetNextStep] i=" << i << " weight=" << join_weights[i] << std::endl;
+            //std::cerr << "i=" << i << " w=" << rem_weights[i] << std::endl;
         
             // TODO: is this the correct weight?
             // TODO: is it before `GetNextStep`?
             //join_weights[i] = rem_weights[i];
         } else {
+            // std::cerr << "\t [Main Loop] second branch!" << std::endl;
             // This is some child other than the last in a fork.
             // Use GetNextStepThroughFork() to correctly set
             // the rem_weight of the parent table and the child table.
@@ -424,14 +462,17 @@ std::vector<weight_t> jefastIndexFork::GetJoinNumberWithWeights(
                 rem_weights[i], /* my_weight */
                 out[i],
                 &join_weights[i]);
-            std::cerr << "i=" << i << " w=" << rem_weights[i] << std::endl;
+            // std::cerr << "\t[after GetNextStepThroughFork] i=" << i << " weight=" << join_weights[i] << std::endl;
+            
+            //std::cerr << "i=" << i << " w=" << rem_weights[i] << std::endl;
             // TODO: is this the correct weight?
             //join_weights[i] = rem_weights[i];
         }
     }
 #endif
-    std::cerr << "[final] size=" << join_weights.size() << std::endl;
-    return std::move(join_weights);
+    //std::cerr << "[final return] join_weights.size()=" << join_weights.size() << std::endl;
+    //std::cerr << "pointer=" << &join_weights << std::endl;
+    return join_weights;
 }
 
 void jefastIndexFork::GetRandomJoin(std::vector<int64_t> &out) {
@@ -441,11 +482,37 @@ void jefastIndexFork::GetRandomJoin(std::vector<int64_t> &out) {
 
 std::vector<weight_t> jefastIndexFork::GetRandomJoinWithWeights(std::vector<int64_t> &out) {
     weight_t random_join_number = m_distribution(m_generator);
-    return std::move(this->GetJoinNumberWithWeights(random_join_number, out));
-    // std::cerr << "aftewards=" << join_weights.size() << std::endl;
-    // for (const auto& elem: join_weights) {
-    //     std::cerr << elem << ",";
-    // }
-    // std::cerr << std::endl;
-    // return join_weights;
+    return this->GetJoinNumberWithWeights(random_join_number, out);
 }
+
+std::pair<std::vector<int64_t>, std::vector<uint64_t>> jefastIndexFork::GenerateSampleData()
+// Generate a sample.
+{
+    // Convert `weight_t` to `uint64_t`.
+    auto convert = [&](std::vector<weight_t>& ws) {
+        std::vector<uint64_t> transformed;
+        std::transform(ws.begin(), ws.end(), std::back_inserter(transformed), [](auto w) {
+            std::ostringstream stream; stream << w;
+            return static_cast<uint64_t>(std::stoull(stream.str())); 
+        });
+        return std::move(transformed);
+    };
+
+    std::vector<int64_t> out;
+    auto ws = GetRandomJoinWithWeights(out);
+    return {std::move(out), convert(ws)};
+}
+
+std::pair<std::vector<std::vector<int64_t>>, std::vector<std::vector<uint64_t>>> jefastIndexFork::GenerateData(size_t count)
+// Generate `count` samples, along with the weights of the tuples.
+{
+    // And sample.
+    std::vector<std::vector<int64_t>> sampled(count);
+    std::vector<std::vector<uint64_t>> weights(count);
+    for (size_t index = 0; index != count; ++index) {
+        auto [ss, ws] = GenerateSampleData();
+        sampled[index] = std::move(ss);
+        weights[index] = std::move(ws);
+    }
+    return {sampled, weights};}
+

@@ -30,6 +30,10 @@ public:
     virtual void GetRandomJoin(std::vector<int64_t> &out) = 0;
     virtual std::vector<weight_t> GetRandomJoinWithWeights(std::vector<int64_t> &out) = 0;
 
+    virtual std::pair<std::vector<std::vector<int64_t>>, std::vector<std::vector<uint64_t>>> GenerateData(size_t count) = 0;
+    virtual std::pair<std::vector<int64_t>, std::vector<uint64_t>> GenerateSampleData() = 0;
+
+
     // return the number of levels in this jefastIndex
     // (how large a vector will be if a join value is reported)
     virtual int GetNumberOfLevels() = 0;
@@ -48,6 +52,9 @@ public:
     
     void GetRandomJoin(std::vector<int64_t> &out);
     std::vector<weight_t> GetRandomJoinWithWeights(std::vector<int64_t> &out);
+
+    std::pair<std::vector<std::vector<int64_t>>, std::vector<std::vector<uint64_t>>> GenerateData(size_t count);
+    std::pair<std::vector<int64_t>, std::vector<uint64_t>> GenerateSampleData();
 
     // return the number of levels in this jefastIndex
     // (how large a vector will be if a join value is reported)
@@ -104,6 +111,9 @@ public:
 
     void GetRandomJoin(std::vector<int64_t> &out);
     std::vector<weight_t> GetRandomJoinWithWeights(std::vector<int64_t> &out);
+
+    std::pair<std::vector<std::vector<int64_t>>, std::vector<std::vector<uint64_t>>> GenerateData(size_t count);
+    std::pair<std::vector<int64_t>, std::vector<uint64_t>> GenerateSampleData();
 
     int GetNumberOfLevels() {
         return (int) m_levels.size() + 1;
