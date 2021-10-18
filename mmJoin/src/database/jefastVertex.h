@@ -167,7 +167,7 @@ public:
         return this->m_weight;
     }
 
-    void get_records(weight_t &inout_weight_condition, jfkey_t &out_record_id) {
+    void get_records(weight_t &inout_weight_condition, jfkey_t &out_record_id, weight_t *out_record_weight) {
         //weight_t counter = inout_weight_condition;
 
         //assert(counter < m_weight);
@@ -176,7 +176,8 @@ public:
 
             // special case
             if (mp_matching_rhs_record_weight->size() == 1) {
-                 out_record_id = m_matching_rhs_record_ids[0];
+                out_record_id = m_matching_rhs_record_ids[0];
+                if (out_record_weight) (*out_record_weight) = m_weight - mp_matching_rhs_record_weight->back();
                 return;
             }
 
@@ -187,12 +188,22 @@ public:
 
             inout_weight_condition -= *w_itr;
             out_record_id = m_matching_rhs_record_ids[index];
+
+            // Set the weight.
+            if (index == mp_matching_rhs_record_weight->size() - 1) {
+                if (out_record_weight) (*out_record_weight) = m_weight - mp_matching_rhs_record_weight->back();
+            } else {
+                if (out_record_weight) (*out_record_weight) = mp_matching_rhs_record_weight->at(index + 1) - mp_matching_rhs_record_weight->at(index);
+            }
             return;
         }
         else {
             // if we are using default weights we do not need to search though the lists
             out_record_id = m_matching_rhs_record_ids[inout_weight_condition];
             inout_weight_condition -= inout_weight_condition;
+
+            // Set the weight.
+            if (out_record_weight) (*out_record_weight) = 1;
             return;
         }
     }
